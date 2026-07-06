@@ -16,17 +16,13 @@ Klicke oben rechts auf den grünen Button **"Use this template"** -> **"Create a
 
 ### 2. Deine Zugangsdaten hinterlegen (Sicher!)
 Gehe in Deinem neu erstellten Repository auf **Settings** -> **Secrets and variables** -> **Actions**.
-Klicke auf **"New repository secret"** und lege nacheinander folgende fünf Secrets an:
+Klicke auf **"New repository secret"** und lege nacheinander folgende drei Secrets an:
 
 1. **`LEAPMOTOR_USERNAME`** (Deine E-Mail-Adresse für die Leapmotor App)
 2. **`LEAPMOTOR_PASSWORD`** (Dein Leapmotor Passwort)
 3. **`ABRP_TOKEN`** (Dein ABRP Telemetry Token. In der ABRP App unter Einstellungen -> Fahrzeug -> Live-Daten -> "Verknüpfen" (Home Assistant) klicken, dort wird ein Token generiert.)
-4. **`LEAPMOTOR_APP_CERT`** (Der komplette Inhalt der Datei `app_cert.pem`)
-5. **`LEAPMOTOR_APP_KEY`** (Der komplette Inhalt der Datei `app_key.pem`)
 
-*(Die beiden PEM-Zertifikate kopierst Du einfach mit dem kompletten Text, inklusive `-----BEGIN CERTIFICATE-----` usw., in das Textfeld. Die Zertifikate tauchen nicht im öffentlichen Code auf!)*
-
-*(Die VIN sucht sich das Skript beim ersten Login automatisch aus Deinem Account!)*
+*(Die Zertifikate für den Login holt sich das Skript automatisch von einem öffentlichen Mirror. Die VIN sucht sich das Skript beim ersten Login automatisch aus Deinem Account!)*
 
 ### 3. Den Sync aktivieren
 Gehe oben auf den Reiter **Actions**.

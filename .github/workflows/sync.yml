@@ -23,14 +23,11 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
         
-      - name: Write Certificates
-        env:
-          LEAPMOTOR_APP_CERT: ${{ secrets.LEAPMOTOR_APP_CERT }}
-          LEAPMOTOR_APP_KEY: ${{ secrets.LEAPMOTOR_APP_KEY }}
+      - name: Fetch Certificates
         run: |
           mkdir -p custom_components/leapmotor
-          echo "$LEAPMOTOR_APP_CERT" > custom_components/leapmotor/app_cert.pem
-          echo "$LEAPMOTOR_APP_KEY" > custom_components/leapmotor/app_key.pem
+          curl -sL https://raw.githubusercontent.com/markoceri/leapmotor-certs/main/app.crt -o custom_components/leapmotor/app_cert.pem
+          curl -sL https://raw.githubusercontent.com/markoceri/leapmotor-certs/main/app.key -o custom_components/leapmotor/app_key.pem
         
       - name: Run Leapmotor-ABRP Sync
         env:
