@@ -123,10 +123,10 @@ def main():
                 abrp_payload = {k: v for k, v in abrp_payload.items() if v is not None}
                 
                 # Push to ABRP
-                headers = {"Authorization": f"APIKEY {args.abrp_token}"}
-                # For custom telemetry, the correct format is often to pass ?token=...&tlm=... but ABRP REST API also accepts:
+                abrp_api_key = "7310445a-0947-4adc-82f5-29bb882c5926"
+                headers = {"Authorization": f"APIKEY {abrp_api_key}"}
                 params = {"token": args.abrp_token, "tlm": json.dumps(abrp_payload)}
-                resp = requests.post(ABRP_URL, params=params, timeout=15)
+                resp = requests.post(ABRP_URL, headers=headers, params=params, timeout=15)
                 
                 if resp.status_code == 200:
                     print(f"[{time.strftime('%X')}] Successfully pushed to ABRP: SoC {abrp_payload.get('soc')}%")
