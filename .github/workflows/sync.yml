@@ -1,0 +1,31 @@
+name: ABRP Sync
+
+on:
+  schedule:
+    # 5-Minuten-Takt für Live-Navigation. 
+    # WICHTIG: Damit die kostenlosen Server-Minuten nicht aufgebraucht werden,
+    # muss das Repository in den GitHub-Settings auf "Public" gestellt sein!
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Erlaubt den manuellen Start über die GitHub-Oberfläche
+
+jobs:
+  sync_to_abrp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+        
+      - name: Run Leapmotor-ABRP Sync
+        env:
+          LEAPMOTOR_USERNAME: ${{ secrets.LEAPMOTOR_USERNAME }}
+          LEAPMOTOR_PASSWORD: ${{ secrets.LEAPMOTOR_PASSWORD }}
+          ABRP_TOKEN: ${{ secrets.ABRP_TOKEN }}
+        run: python leapmotor_to_abrp.py --abrp-token "$ABRP_TOKEN" --once

@@ -1,0 +1,4 @@
+custom_components/leapmotor/app_cert.pem
+custom_components/leapmotor/app_key.pem
+__pycache__
+*.pyc
