@@ -20,7 +20,7 @@ Klicke auf **"New repository secret"** und lege nacheinander folgende drei Secre
 
 1. **`LEAPMOTOR_USERNAME`** (Deine E-Mail-Adresse für die Leapmotor App)
 2. **`LEAPMOTOR_PASSWORD`** (Dein Leapmotor Passwort)
-3. **`ABRP_TOKEN`** (Dein ABRP Telemetry Token. In der ABRP App unter Einstellungen -> Fahrzeug -> Live-Daten -> "Verknüpfen" (Home Assistant) klicken, dort wird ein Token generiert.)
+3. **`ABRP_TOKEN`** (Dein ABRP Telemetry Token. In der ABRP App unter Einstellungen -> Fahrzeug -> Live-Daten -> "Verknüpfen" klicken, dort wird ein Token generiert.)
 
 *(Die Zertifikate für den Login holt sich das Skript automatisch von einem öffentlichen Mirror. Die VIN sucht sich das Skript beim ersten Login automatisch aus Deinem Account!)*
 
