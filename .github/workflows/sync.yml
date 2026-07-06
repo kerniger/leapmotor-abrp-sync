@@ -33,8 +33,8 @@ jobs:
       - name: Fetch Certificates
         run: |
           mkdir -p custom_components/leapmotor
-          curl -sL https://raw.githubusercontent.com/markoceri/leapmotor-certs/main/app.crt -o custom_components/leapmotor/app_cert.pem
-          curl -sL https://raw.githubusercontent.com/markoceri/leapmotor-certs/main/app.key -o custom_components/leapmotor/app_key.pem
+          curl -fsSL https://raw.githubusercontent.com/markoceri/leapmotor-certs/5d687448c11dd2253669d1c55710e688313d1e2b/app.crt -o custom_components/leapmotor/app_cert.pem
+          curl -fsSL https://raw.githubusercontent.com/markoceri/leapmotor-certs/5d687448c11dd2253669d1c55710e688313d1e2b/app.key -o custom_components/leapmotor/app_key.pem
         
       - name: Run Leapmotor-ABRP Sync
         env:
