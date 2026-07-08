@@ -6,7 +6,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 def run_sync():
     print("Starte ABRP Sync Loop (5-Minuten-Takt)...", flush=True)
     while True:
-        os.system('python leapmotor_to_abrp.py --once')
+        abrp_token = os.environ.get("ABRP_TOKEN", "")
+        os.system(f'python leapmotor_to_abrp.py --abrp-token "{abrp_token}" --once')
         time.sleep(300)
 
 class DummyHandler(BaseHTTPRequestHandler):
