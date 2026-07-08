@@ -3,7 +3,16 @@ import time
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+def download_certs():
+    import urllib.request
+    os.makedirs("custom_components/leapmotor", exist_ok=True)
+    if not os.path.exists("custom_components/leapmotor/app_cert.pem"):
+        print("Lade Zertifikate herunter...", flush=True)
+        urllib.request.urlretrieve("https://raw.githubusercontent.com/markoceri/leapmotor-certs/5d687448c11dd2253669d1c55710e688313d1e2b/app.crt", "custom_components/leapmotor/app_cert.pem")
+        urllib.request.urlretrieve("https://raw.githubusercontent.com/markoceri/leapmotor-certs/5d687448c11dd2253669d1c55710e688313d1e2b/app.key", "custom_components/leapmotor/app_key.pem")
+
 def run_sync():
+    download_certs()
     print("Starte ABRP Sync Loop (5-Minuten-Takt)...", flush=True)
     while True:
         abrp_token = os.environ.get("ABRP_TOKEN", "")
