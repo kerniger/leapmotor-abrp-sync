@@ -28,6 +28,8 @@ Du musst dafür nichts herunterladen und auch keinen eigenen GitHub Account besi
    - `LEAPMOTOR_USERNAME` = (Deine E-Mail-Adresse der Leapmotor App)
    - `LEAPMOTOR_PASSWORD` = (Dein Leapmotor Passwort)
    - `ABRP_TOKEN` = (Dein ABRP Telemetry Token. In der ABRP App unter "Live-Daten" -> "Verknüpfen" generieren)
+   
+   > 💡 **WICHTIGER TIPP:** Lege dir am besten in der Leapmotor App einen kostenlosen Zweit-Account an und teile (share) dein Fahrzeug mit diesem. Nutze dann hier die Login-Daten des Zweit-Accounts. So verhinderst du, dass du auf deinem Handy ständig aus der Leapmotor-App ausgeloggt wirst!
 6. Klicke ganz unten auf **"Create Web Service"**.
 
 Render startet nun Dein persönliches Skript. Oben links im Dashboard siehst Du eine URL (z.B. `https://leapmotor-abrp-xyz.onrender.com`). 
@@ -111,6 +113,8 @@ You do not need to download anything and you do not even need a GitHub account!
    - `LEAPMOTOR_USERNAME` = (Your Leapmotor App email address)
    - `LEAPMOTOR_PASSWORD` = (Your Leapmotor password)
    - `ABRP_TOKEN` = (Your ABRP Telemetry Token. Generate it in the ABRP app under "Live Data" -> "Link")
+   
+   > 💡 **IMPORTANT TIP:** We highly recommend creating a free secondary account in the Leapmotor app and sharing your vehicle with it. Use the login details of that secondary account here. This prevents the script from constantly logging you out of the Leapmotor app on your phone!
 6. Scroll down and click **"Create Web Service"**.
 
 Render will now start your personal script. In the top left of the dashboard, you will see a URL (e.g., `https://leapmotor-abrp-xyz.onrender.com`).
