@@ -1,11 +1,16 @@
 FROM python:3.11-alpine
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+RUN addgroup -S app && adduser -S app -G app
+COPY --chown=app:app . .
 
-# Run the render_app loop by default, because it handles the infinite loop and downloading certs.
-# Or better, just run leapmotor_to_abrp.py in a loop. render_app.py also works perfectly since it loops and downloads certs.
+USER app
+EXPOSE 10000
+
 CMD ["python", "render_app.py"]

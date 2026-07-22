@@ -62,11 +62,29 @@ Wenn es neue Funktionen gibt, logge Dich einfach bei Render.com ein, klicke auf 
 ## 💻 Alternative: Self-Hosting (Docker / NAS / Raspberry Pi)
 Wenn Du ohnehin einen eigenen kleinen Server 24/7 am Laufen hast, ist das die beste und stabilste Lösung – komplett ohne Cloud-Abhängigkeiten!
 
-1. Klone dieses Repository auf deinen Server:
-   `git clone https://github.com/kerniger/leapmotor-abrp-sync.git`
-2. Passe die Passwörter in der Datei `docker-compose.yml` an.
-3. Starte den Container im Hintergrund:
-   `docker-compose up -d --build`
+Das fertige Image `ghcr.io/kerniger/leapmotor-abrp-sync:latest` unterstützt
+`amd64` und `arm64`. Passe die drei Werte in `docker-compose.yml` an und starte
+den Container mit:
+
+`docker compose up -d`
+
+Für spätere Updates genügen:
+
+`docker compose pull && docker compose up -d`
+
+### Synology Container Manager ohne SSH
+
+1. Öffne **Container Manager → Projekt → Erstellen**.
+2. Wähle einen leeren Ordner auf dem NAS als Projektpfad.
+3. Wähle als Quelle **docker-compose.yml erstellen** und füge den Inhalt der
+   [`docker-compose.yml`](docker-compose.yml) aus diesem Repository ein.
+4. Ersetze `LEAPMOTOR_USERNAME`, `LEAPMOTOR_PASSWORD` und `ABRP_TOKEN` durch
+   Deine Werte und stelle das Projekt fertig.
+
+Container Manager lädt das fertige Image selbstständig. Es sind weder SSH noch
+Root-Rechte und auch kein lokaler Build erforderlich. Zugangsdaten stehen in
+der Projektkonfiguration im Klartext und sollten nur für NAS-Administratoren
+zugänglich sein.
 
 Der Container lädt sich automatisch die nötigen Zertifikate und schickt Deine Daten im 5-Minuten-Takt an ABRP.
 
@@ -147,11 +165,28 @@ Whenever there are new features, simply log into Render.com, click on your Web S
 ## 💻 Alternative: Self-Hosting (Docker / NAS / Raspberry Pi)
 If you already run your own small server 24/7, this is the best and most robust solution – completely independent of cloud limits!
 
-1. Clone this repository to your server:
-   `git clone https://github.com/kerniger/leapmotor-abrp-sync.git`
-2. Adjust your passwords in the `docker-compose.yml` file.
-3. Start the container in the background:
-   `docker-compose up -d --build`
+The prebuilt image `ghcr.io/kerniger/leapmotor-abrp-sync:latest` supports
+`amd64` and `arm64`. Adjust the three values in `docker-compose.yml` and start
+the container with:
+
+`docker compose up -d`
+
+To install future updates, run:
+
+`docker compose pull && docker compose up -d`
+
+### Synology Container Manager without SSH
+
+1. Open **Container Manager → Project → Create**.
+2. Select an empty folder on the NAS as the project path.
+3. Choose **Create docker-compose.yml** as the source and paste the contents of
+   this repository's [`docker-compose.yml`](docker-compose.yml).
+4. Replace `LEAPMOTOR_USERNAME`, `LEAPMOTOR_PASSWORD`, and `ABRP_TOKEN` with
+   your values and finish creating the project.
+
+Container Manager downloads the prebuilt image automatically. SSH, root access,
+and a local image build are not required. Credentials are stored as plain text
+in the project configuration and should only be accessible to NAS administrators.
 
 The container will automatically download the necessary certificates and push your data to ABRP every 5 minutes.
 

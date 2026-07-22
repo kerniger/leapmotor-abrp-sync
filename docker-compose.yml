@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
   leapmotor-abrp:
-    build: .
+    image: ghcr.io/kerniger/leapmotor-abrp-sync:latest
+    pull_policy: always
     container_name: leapmotor-abrp
     restart: unless-stopped
     environment:
-      - LEAPMOTOR_USERNAME=deine.email@beispiel.de
-      - LEAPMOTOR_PASSWORD=dein_passwort
-      - ABRP_TOKEN=dein_abrp_token
+      LEAPMOTOR_USERNAME: "deine.email@beispiel.de"
+      LEAPMOTOR_PASSWORD: "dein_passwort"
+      ABRP_TOKEN: "dein_abrp_token"
