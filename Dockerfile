@@ -5,7 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 COPY requirements.txt .
-RUN apk add --no-cache curl \
+RUN apk add --no-cache curl openssl \
     && pip install --no-cache-dir -r requirements.txt
 
 RUN addgroup -S app && adduser -S app -G app

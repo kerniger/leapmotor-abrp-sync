@@ -63,3 +63,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Smoke-test published image
+        run: >-
+          docker run --rm --platform linux/amd64
+          --entrypoint sh
+          "${REGISTRY}/${IMAGE_NAME}:${{ steps.meta.outputs.version }}"
+          /app/scripts/container_smoke_test.sh
