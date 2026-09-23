@@ -15,14 +15,14 @@ def download_certs():
 
 def run_sync():
     download_certs()
-    print("Starte ABRP Sync Loop (5-Minuten-Takt)...", flush=True)
+    print("Starte ABRP Sync Loop...", flush=True)
     while True:
         subprocess.run(
             [sys.executable, "leapmotor_to_abrp.py", "--once"],
             check=False,
             env=os.environ.copy()
         )
-        time.sleep(300)
+        time.sleep(max(1, int(os.getenv("SYNC_INTERVAL", "300"))))
 
 class DummyHandler(BaseHTTPRequestHandler):
     def do_HEAD(self):

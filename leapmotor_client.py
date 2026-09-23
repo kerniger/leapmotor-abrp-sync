@@ -22,6 +22,10 @@ from typing import Any
 
 import requests
 import urllib3
+
+from telemetry import (
+    fetch_vehicle_status, _status_data_signal, _derive_vehicle_state, _is_charging,
+)
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import padding
@@ -1094,12 +1098,12 @@ def normalize_vehicle_summary(
             break
 
     status_data = status_json.get("data") or {}
-    signal = status_data.get("signal") or {}
+    signal = _status_data_signal(status_data)
     config = status_data.get("config") or {}
     charge_plan = config.get("3") or {}
     bt_config = config.get("4") or {}
     picture_data = picture_json.get("data") or {}
-    parked_signal = signal.get("1298")
+    vehicle_state = _derive_vehicle_state(signal)
 
     return {
         "vehicle": {
@@ -1114,20 +1118,21 @@ def normalize_vehicle_summary(
             "battery_percent": signal.get("1204"),
             "remaining_range_km": signal.get("3260"),
             "odometer_km": signal.get("1318"),
-            "is_locked": signal.get("47") == 1 if signal.get("47") is not None else None,
-            "is_parked": parked_signal == 1 if parked_signal is not None else None,
+            "is_locked": signal.get("1298") == 1 if signal.get("1298") is not None else None,
+            "is_parked": vehicle_state == "parked" if vehicle_state is not None else None,
             "interior_temp_c": signal.get("1349"),
             "climate_set_temp_left_c": signal.get("2183"),
             "climate_set_temp_right_c": signal.get("2184"),
             "last_vehicle_timestamp": signal.get("sts"),
         },
         "location": {
-            "latitude": signal.get("3725", signal.get("2190")),
-            "longitude": signal.get("3724", signal.get("2191")),
+            "latitude": signal.get("3"),
+            "longitude": signal.get("2"),
             "privacy_gps": status_data.get("privacyGPS"),
             "privacy_data": status_data.get("privacyData"),
         },
         "charging": {
+            "is_charging": _is_charging(signal),
             "charge_limit_percent": charge_plan.get("percent"),
             "charging_planned_enabled": charge_plan.get("isEnable"),
             "charging_planned_start": charge_plan.get("beginTime"),
@@ -1154,15 +1159,15 @@ def normalize_vehicle_summary(
             "range_signal": "3260",
             "battery_signal": "1204",
             "odometer_signal": "1318",
-            "lock_signal": "47",
-            "parked_signal": "1298 (inferred from UI state 'Geparkt')",
+            "lock_signal": "1298",
+            "parked_signal": "1010/1319/1258",
             "interior_temp_signal": "1349",
             "climate_left_signal": "2183",
             "climate_right_signal": "2184",
             "charge_limit_source": "config.3.percent",
             "location_signals": {
-                "longitude": "3724/2191",
-                "latitude": "3725/2190",
+                "longitude": "2",
+                "latitude": "3",
             },
             "tire_pressure_signals": {
                 "front_left_bar": "2667 (inferred from activity_lpcar_health.xml lf slot)",
@@ -1170,7 +1175,7 @@ def normalize_vehicle_summary(
                 "rear_left_bar": "2646 (inferred from activity_lpcar_health.xml lr slot)",
                 "rear_right_bar": "2660 (inferred from activity_lpcar_health.xml rr slot)",
             },
-            "status_endpoint": "/carownerservice/oversea/vehicle/v1/status/get/c10",
+            "status_endpoint": status_json.get("_status_endpoint_path"),
             "list_endpoint": "/carownerservice/oversea/vehicle/v1/list",
             "carpicture_endpoint": "/carownerservice/oversea/vehicle/v1/carpicture/key",
         },
@@ -1994,12 +1999,14 @@ def main() -> int:
                 "token": login_data["token"],
             }
         )
-        status_result = account_client.replay_request_curl(
-            path="/carownerservice/oversea/vehicle/v1/status/get/c10",
-            headers=status_headers,
-            data=f"vin={args.vin}",
+        status_result = fetch_vehicle_status(
+            account_client, status_headers, args.vin, list_json,
         )
         status_json = parse_json_body(status_result["body"])
+        status_json["_status_endpoint_path"] = (
+            "/carownerservice/oversea/vehicle/v1/status/get/"
+            + status_result["_status_endpoint_path"]
+        )
 
         picture_body = f"deviceID={account_client.config.device_id}&vin={args.vin}"
         picture_headers, picture_sign_input = account_client.build_headers(
