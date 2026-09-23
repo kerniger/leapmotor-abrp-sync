@@ -30,3 +30,5 @@ findings
 LOCAL_ACCESS.md
 .DS_Store
 **/.DS_Store
+
+state/

@@ -4,7 +4,7 @@
 
 Dieses Projekt verbindet Deinen Leapmotor automatisch mit ABRP (A Better Routeplanner), um Deine aktuellen Fahrzeugdaten (Ladezustand / SoC, Parkstatus, etc.) für eine genaue Navigation zu nutzen.
 
-**Die Lösung ohne eigenen Server:** Da kostenlose GitHub-Actions sehr unzuverlässig für Live-Daten im Minutentakt sind, nutzt dieses Setup das kostenlose Cloud-Hosting von **Render.com**. Das Skript läuft völlig automatisch in der Cloud und aktualisiert Deinen Ladestand zuverlässig alle 5 Minuten.
+**Die Lösung ohne eigenen Server:** Da kostenlose GitHub-Actions sehr unzuverlässig für Live-Daten im Minutentakt sind, nutzt dieses Setup das kostenlose Cloud-Hosting von **Render.com**. Das Skript läuft völlig automatisch in der Cloud und prüft alle 5 Minuten auf neue Fahrzeugdaten.
 
 ---
 
@@ -46,7 +46,7 @@ Kostenlose Server bei Render.com schalten sich nach 15 Minuten ab, wenn niemand 
    - **Monitoring Interval:** `10 minutes` (oder 5 minutes)
 4. Klicke auf **"Create Monitor"**.
 
-**Fertig!** UptimeRobot ruft nun rund um die Uhr automatisch deine Render-URL auf. Das Skript läuft dauerhaft im Hintergrund und schickt Deinen Akkustand alle 5 Minuten live an ABRP.
+**Fertig!** UptimeRobot ruft nun rund um die Uhr automatisch deine Render-URL auf. Das Skript läuft dauerhaft im Hintergrund und prüft alle 5 Minuten auf neue, ausreichend aktuelle Fahrzeugdaten für ABRP.
 
 ### Schritt 3: Erfolg prüfen
 1. Kontrolliere den aktuellen Ladestand (SoC) in Deiner Leapmotor App.
@@ -107,7 +107,7 @@ Der Container lädt sich automatisch die nötigen Zertifikate und schickt Deine 
 
 This project automatically connects your Leapmotor to ABRP (A Better Routeplanner) to sync your live vehicle data (State of Charge / SoC, parking status, etc.) for accurate routing.
 
-**The serverless solution:** Since free GitHub Actions are highly unreliable for minutely live data, this setup uses the free cloud hosting from **Render.com**. The script runs entirely automatically in the cloud and reliably updates your SoC every 5 minutes.
+**The serverless solution:** Since free GitHub Actions are highly unreliable for minutely live data, this setup uses the free cloud hosting from **Render.com**. The script runs entirely automatically in the cloud and checks for new vehicle data every 5 minutes.
 
 ---
 
@@ -149,7 +149,7 @@ Free servers on Render.com go to sleep after 15 minutes without any website visi
    - **Monitoring Interval:** `10 minutes` (or 5 minutes)
 4. Click **"Create Monitor"**.
 
-**Done!** UptimeRobot will now automatically ping your Render URL around the clock. The script will run continuously in the background and sync your battery level to ABRP every 5 minutes.
+**Done!** UptimeRobot will now automatically ping your Render URL around the clock. The script will run continuously in the background and check for fresh vehicle data to forward to ABRP every 5 minutes.
 
 ### Step 3: Verification
 1. Check your current State of Charge (SoC) in the Leapmotor app.
@@ -188,7 +188,7 @@ Container Manager downloads the prebuilt image automatically. SSH, root access,
 and a local image build are not required. Credentials are stored as plain text
 in the project configuration and should only be accessible to NAS administrators.
 
-The container will automatically download the necessary certificates and push your data to ABRP every 5 minutes.
+The container will automatically download the necessary certificates and check for fresh vehicle data to forward to ABRP every 5 minutes.
 
 ---
 
@@ -197,3 +197,74 @@ The container will automatically download the necessary certificates and push yo
 - **No remote control possible:** To guarantee your security, all remote control functions (unlocking the car, starting the AC) have been **completely removed** from the code. This script can only **read** your data (Read-Only principle).
 - **Certificates & API:** Since the Leapmotor API does not offer a true "Read-Only" login, the script uses your regular login. The script automatically fetches the required certificates for the login on startup.
 - **Disclaimer:** Use at your own risk. Neither the developer of this script nor the cloud providers assume liability for locked accounts or unexpected behavior of the Leapmotor API.
+
+## Telemetrie-Korrekturen und Einstellungen (September 2026)
+
+Der Sync übernimmt die geprüfte EU-Statusinterpretation aus Leapmotor HA 0.7.3:
+Ladeerkennung einschließlich REEV/READY/Rekuperation, Parkzustand über Gang und
+Geschwindigkeit, signierte GPS-Koordinaten und T03-Statusfelder. Signal 1939 ist
+kein Ladesignal; die Innenraumtemperatur wird nicht mehr als Außentemperatur gesendet.
+CN-Fahrzeuge werden durch dieses Update nicht unterstützt.
+
+| Umgebungsvariable | Standard | Bedeutung |
+|---|---|---|
+| `LEAPMOTOR_VIN` | automatische Auswahl bei genau einem Fahrzeug | Bei mehreren Fahrzeugen zwingend setzen; der ABRP-Token muss zu diesem Fahrzeug gehören. |
+| `SYNC_INTERVAL` | `300` | Abfrageintervall in Sekunden. |
+| `MAX_TELEMETRY_AGE` | `900` | Maximales Alter der Fahrzeugdaten in Sekunden. |
+| `TELEMETRY_STATE_DIR` | `state` neben dem Skript | Beschreibbarer Speicher für GPS-Vorzeichen und zuletzt gesendeten Fahrzeugzeitpunkt. |
+
+ABRP erhält den **Fahrzeugzeitpunkt**, nicht die Uhrzeit der Cloud-Abfrage.
+Fehlende, mehr als 60 Sekunden zukünftige, zu alte oder bereits gesendete
+Zeitpunkte werden übersprungen. Sekunden, Millisekunden und ISO-Zeitstempel mit
+Zeitzone werden akzeptiert; beim T03 hat `collectTimeMs` Vorrang. ISO-Werte ohne
+Zeitzone werden nicht geraten. Ein schlafendes Fahrzeug erzeugt daher nicht
+alle fünf Minuten einen neuen ABRP-Datenpunkt. SoC 0 % bleibt ein gültiger Wert;
+die noch ungeklärten SOC-Ausreißer beim Aufwachen werden nicht pauschal gefiltert.
+
+GPS-Vorzeichen werden pro VIN gespeichert. Fehlen sowohl signierte Koordinaten
+als auch bekannte Vorzeichen, werden Positionen ausgelassen. SoC kann trotzdem
+übermittelt werden. Die Compose-Datei verwendet ein persistentes Volume; bei
+`docker run` dafür `-v leapmotor-abrp-state:/app/state` ergänzen. Render Free kann
+den lokalen Zustand bei einem Redeploy verlieren; ein dauerhafter Datenträger
+ist für die Speicherung über Redeploys hinweg nötig. Nur einen Sync-Prozess pro
+Fahrzeug/ABRP-Zuordnung betreiben.
+
+Die Zustandsdateien enthalten keine Zugangsdaten oder vollständigen Koordinaten,
+sondern Hashes, Vorzeichen, Bestätigungszähler und den letzten Sendezeitpunkt.
+Die Speicherung erfolgt erst nach bestätigter ABRP-Annahme. Fehlerantworten und
+Client-Diagnosen werden nicht mit Zugangsdaten ins Log übernommen.
+
+Tests: `python -m unittest discover -s tests -v`. Sie verwenden ausschließlich
+synthetische Daten; der Container wird zusätzlich ohne Netzwerk getestet.
+
+## Telemetry corrections and configuration (September 2026)
+
+The bridge now uses the validated EU status interpretation from Leapmotor HA
+0.7.3: charging detection including REEV, READY and regenerative braking;
+parking derived from gear/speed; signed GPS coordinates; and T03 status fields.
+Signal 1939 is not a charging indicator. Cabin temperature is no longer sent
+as outside temperature. This update does not add CN vehicle support.
+
+Set `LEAPMOTOR_VIN` when the account has multiple vehicles and use the matching
+ABRP vehicle token. Auto-selection is allowed only for a single vehicle.
+`SYNC_INTERVAL` defaults to 300 seconds, `MAX_TELEMETRY_AGE` to 900 seconds,
+and `TELEMETRY_STATE_DIR` to the `state` directory beside the script.
+
+Telemetry carries the vehicle timestamp. Missing, stale, duplicate, out-of-order
+or more than 60 seconds future timestamps are skipped. Epoch seconds,
+milliseconds and timezone-aware ISO timestamps are supported, with T03
+`collectTimeMs` preferred. Timezone-less timestamps are skipped. Sleeping cars
+therefore do not generate artificial fresh updates. Zero SOC remains valid;
+unresolved wake-up SOC transients are not filtered speculatively.
+
+GPS hemisphere signs are remembered per VIN. Positions with neither signed
+coordinates nor known signs are omitted while SOC can still be forwarded.
+Compose includes a persistent state volume; for `docker run`, add
+`-v leapmotor-abrp-state:/app/state`. Render Free may lose local state on redeploy;
+use persistent storage to retain it across deployments. Run one sync process per
+vehicle/token assignment. State contains hashes, signs, counters and the last
+accepted vehicle timestamp, not credentials or full coordinates, and is saved
+only after ABRP confirms acceptance. Raw client errors are not logged.
+
+Run offline regressions with `python -m unittest discover -s tests -v`.
+The container smoke test and regression suite also run without network access.

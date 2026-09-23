@@ -8,7 +8,8 @@ COPY requirements.txt .
 RUN apk add --no-cache curl openssl \
     && pip install --no-cache-dir -r requirements.txt
 
-RUN addgroup -S app && adduser -S app -G app
+RUN addgroup -S app && adduser -S app -G app \
+    && mkdir -p /app/state && chown app:app /app/state
 COPY --chown=app:app . .
 
 USER app

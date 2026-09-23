@@ -1,144 +1,143 @@
 #!/usr/bin/env python3
-import subprocess
-import json
-import time
-import requests
+"""Forward validated, fresh EU vehicle telemetry to ABRP."""
 import argparse
-import sys
+import hashlib
+import json
 import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+
+import requests
+
+from telemetry import build_payload, checked_body
 
 ABRP_URL = "https://api.iternio.com/1/tlm/send"
+ABRP_API_KEY = "7310445a-0947-4adc-82f5-29bb882c5926"
+ROOT = Path(__file__).resolve().parent
+
+
+class ConfigurationError(RuntimeError):
+    """Actionable configuration errors containing no private data."""
+
+
+def run_client(command, env, vin=None):
+    cmd = [sys.executable, str(ROOT / "leapmotor_client.py"),
+           "--cert-file", str(ROOT / "custom_components/leapmotor/app_cert.pem"),
+           "--key-file", str(ROOT / "custom_components/leapmotor/app_key.pem"), command]
+    if vin:
+        cmd.extend(["--vin", vin])
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=180)
+    if result.returncode:
+        # The diagnostic client may print credentials in errors: never relay them.
+        raise RuntimeError("Leapmotor client failed")
+    return json.loads(result.stdout)
+
+
+def detect_vin(env):
+    result = run_client("direct-login-vehicle-list", env)
+    data = checked_body(result["vehicle_list"])["data"]
+    vins = {str(car["vin"]) for bucket in ("bindcars", "sharedcars")
+            for car in data.get(bucket, []) or [] if car.get("vin")}
+    if len(vins) != 1:
+        raise ConfigurationError("Set LEAPMOTOR_VIN/--vin explicitly: account must have exactly one vehicle for auto-detection")
+    return vins.pop()
+
+
+def state_path(directory, vin):
+    return Path(directory) / (hashlib.sha256(vin.encode()).hexdigest() + ".json")
+
+
+def load_state(path, token):
+    try:
+        state = json.loads(path.read_text())
+    except FileNotFoundError:
+        state = {}
+    token_id = hashlib.sha256(token.encode()).hexdigest()
+    if state.get("token_id") != token_id:
+        state.pop("last_utc", None)
+    state["token_id"] = token_id
+    return state
+
+
+def save_state(path, state):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=".telemetry-")
+    try:
+        with os.fdopen(fd, "w") as stream:
+            json.dump(state, stream)
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def sync_once(vin, token, env, directory, max_age):
+    result = run_client("direct-login-vehicle-summary", env, vin)
+    data = checked_body(result["requests"]["vehicle_status"])["data"]
+    path = state_path(directory, vin)
+    state = load_state(path, token)
+    try:
+        payload, next_state = build_payload(data, state, now=time.time(), max_age=max_age)
+    except ValueError as error:
+        print(f"Skipping telemetry: {error}", flush=True)
+        return False
+    response = requests.post(ABRP_URL,
+        headers={"Authorization": f"APIKEY {ABRP_API_KEY}"},
+        params={"token": token, "tlm": json.dumps(payload)}, timeout=15)
+    if response.status_code != 200:
+        raise RuntimeError(f"ABRP HTTP {response.status_code}")
+    # ABRP may report an application error with HTTP 200.
+    if response.json().get("status") != "ok":
+        raise RuntimeError("ABRP rejected telemetry")
+    save_state(path, next_state)
+    print(f"Successfully pushed to ABRP: SoC {payload['soc']}%", flush=True)
+    return True
+
+
+def positive_int(raw):
+    value = int(raw)
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be positive")
+    return value
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Push Leapmotor telemetry to ABRP")
-    parser.add_argument("--vin", required=False, help="Vehicle VIN (optional, auto-detected if not provided)")
-    parser.add_argument("--abrp-token", required=False, help="ABRP User Token (or use ABRP_TOKEN env var)")
-    parser.add_argument("--username", help="Leapmotor username (or use LEAPMOTOR_USERNAME env var)")
-    parser.add_argument("--password", help="Leapmotor password (or use LEAPMOTOR_PASSWORD env var)")
-    parser.add_argument("--interval", type=int, default=300, help="Interval in seconds (default 300)")
-    parser.add_argument("--once", action="store_true", help="Run only once and exit (for cron/GitHub Actions)")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--vin", default=os.getenv("LEAPMOTOR_VIN"))
+    parser.add_argument("--abrp-token", default=os.getenv("ABRP_TOKEN"))
+    parser.add_argument("--username", default=os.getenv("LEAPMOTOR_USERNAME"))
+    parser.add_argument("--password", default=os.getenv("LEAPMOTOR_PASSWORD"))
+    parser.add_argument("--interval", type=positive_int, default=os.getenv("SYNC_INTERVAL", "300"))
+    parser.add_argument("--max-age", type=positive_int, default=os.getenv("MAX_TELEMETRY_AGE", "900"))
+    parser.add_argument("--state-dir", default=os.getenv("TELEMETRY_STATE_DIR", str(ROOT / "state")))
+    parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
-
-    username = args.username or os.environ.get("LEAPMOTOR_USERNAME")
-    password = args.password or os.environ.get("LEAPMOTOR_PASSWORD")
-    abrp_token = args.abrp_token or os.environ.get("ABRP_TOKEN")
-    if not abrp_token:
-        parser.error("--abrp-token or ABRP_TOKEN env var is required")
-
+    if not args.abrp_token:
+        parser.error("--abrp-token or ABRP_TOKEN is required")
+    env = os.environ.copy()
+    for key, value in (("LEAPMOTOR_USERNAME", args.username), ("LEAPMOTOR_PASSWORD", args.password)):
+        if value:
+            env[key] = value
     vin = args.vin
-    if not vin:
-        print("Auto-detecting VIN from account...")
-        cmd_list = [
-            sys.executable,
-            "leapmotor_client.py",
-            "--cert-file", "custom_components/leapmotor/app_cert.pem",
-            "--key-file", "custom_components/leapmotor/app_key.pem",
-            "direct-login-vehicle-list"
-        ]
-
-            
-        list_res = subprocess.run(cmd_list, capture_output=True, text=True)
-        if list_res.returncode != 0:
-            print(f"Error auto-detecting VIN: {list_res.stderr.strip()}")
-            sys.exit(1)
-            
-        try:
-            list_data = json.loads(list_res.stdout)
-            body_str = list_data.get("vehicle_list", {}).get("body", "{}")
-            body_json = json.loads(body_str)
-            data_dict = body_json.get("data", {})
-            for bucket in ("bindcars", "sharedcars"):
-                for car in data_dict.get(bucket, []):
-                    if car.get("vin"):
-                        vin = car.get("vin")
-                        break
-                if vin:
-                    break
-        except Exception as e:
-            print(f"Failed to parse VIN from account: {e}")
-            sys.exit(1)
-            
-        if not vin:
-            print("No vehicles found in your Leapmotor account!")
-            sys.exit(1)
-            
-        masked_vin = f"***{vin[-4:]}" if len(vin) >= 4 else "***"
-        print(f"Auto-detected VIN: {masked_vin}")
-        
-    cmd = [
-        sys.executable,
-        "leapmotor_client.py",
-        "--cert-file", "custom_components/leapmotor/app_cert.pem",
-        "--key-file", "custom_components/leapmotor/app_key.pem",
-        "direct-login-vehicle-summary",
-        "--vin", vin
-    ]
-
-
-    masked_vin = f"***{vin[-4:]}" if len(vin) >= 4 else "***"
-    print(f"Starting Leapmotor to ABRP bridge for VIN {masked_vin}")
-    print(f"Update interval: {args.interval} seconds")
-
     while True:
         try:
-            # Call leapmotor_client.py directly
-
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                print(f"[{time.strftime('%X')}] Error fetching data: {result.stderr.strip()}")
-            else:
-                data = json.loads(result.stdout)
-                summary = data.get("summary", {})
-                status = summary.get("status", {})
-                location = summary.get("location", {})
-                
-                # Extract raw signals from the requests block because the summary doesn't include everything
-                raw_signal = {}
-                try:
-                    status_body = data.get("requests", {}).get("vehicle_status", {}).get("body", "{}")
-                    status_json = json.loads(status_body)
-                    raw_signal = status_json.get("data", {}).get("signal", {})
-                except Exception:
-                    pass
-
-                # Signal 1939 = raw_charge_status_code. (Usually 1 = charging)
-                raw_charge_status = raw_signal.get("1939")
-                is_charging = (raw_charge_status == 1) if raw_charge_status is not None else False
-
-                abrp_payload = {
-                    "utc": int(time.time()),
-                    "soc": status.get("battery_percent"),
-                    "is_parked": status.get("is_parked"),
-                    "lat": location.get("latitude"),
-                    "lon": location.get("longitude"),
-                    "is_charging": is_charging,
-                    "odometer": status.get("odometer_km"),
-                    "ext_temp": status.get("interior_temp_c")  # Using interior temp as fallback if external isn't available
-                }
-                
-                # Filter out None values
-                abrp_payload = {k: v for k, v in abrp_payload.items() if v is not None}
-                
-                # Push to ABRP
-                # Dies ist der registrierte ABRP Developer-API-Key für das Leapmotor-Projekt.
-                # Er identifiziert die Integration gegenüber ABRP, während der User-Token den Account bestimmt.
-                abrp_api_key = "7310445a-0947-4adc-82f5-29bb882c5926"
-                headers = {"Authorization": f"APIKEY {abrp_api_key}"}
-                params = {"token": abrp_token, "tlm": json.dumps(abrp_payload)}
-                resp = requests.post(ABRP_URL, headers=headers, params=params, timeout=15)
-                
-                if resp.status_code == 200:
-                    print(f"[{time.strftime('%X')}] Successfully pushed to ABRP: SoC {abrp_payload.get('soc')}%")
-                else:
-                    print(f"[{time.strftime('%X')}] Failed to push to ABRP: {resp.status_code} {resp.text}")
-
-        except Exception as e:
-            print(f"[{time.strftime('%X')}] Unexpected error: {e}")
-
+            vin = vin or detect_vin(env)
+            sync_once(vin, args.abrp_token, env, args.state_dir, args.max_age)
+        except ConfigurationError as error:
+            print(str(error), flush=True)
+            return 1
+        except Exception as error:
+            # HTTP errors can include URLs/tokens; raw client output is sensitive.
+            print(f"Sync failed ({type(error).__name__}); check credentials, VIN and service availability", flush=True)
+            if args.once:
+                return 1
         if args.once:
-            break
-            
+            return 0
         time.sleep(args.interval)
 
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
